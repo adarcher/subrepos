@@ -1,0 +1,80 @@
+#!/bin/sh
+
+
+## Colors
+RED="\e[38;5;124m"
+CLEAR="\e[0m"
+BOLD="\e[1m"
+
+gitroot=$(git rev-parse --show-toplevel)
+pushd "${gitroot}" > /dev/null
+
+## Each subrepo
+# ${directory}=${git_command}
+subreposfile="./subrepos/repos"
+usersubreposfile=".gitsubrepos"
+
+repos=() 
+while read repo || [[ -n "${repo}" ]]; do
+  repos+=( "${repo}" )
+done < "${subreposfile}"
+
+while read repo || [[ -n "${repo}" ]]; do
+  repos+=( "${repo}" )
+done < "${usersubreposfile}"
+
+for i in "${!repos[@]}"; do
+  repo=${repos[$i]}
+
+  if [[ "${repo:0:1}" =~ "#" ]]
+	then
+	  continue
+	fi
+
+	pull=${repo##*=}
+	base=${repo%=*}
+
+  if [[ -z "${base}" ]] || [[ -z "${pull}" ]]
+	then
+	  continue
+	fi
+
+	base_error="${BOLD}${RED}${base}${CLEAR}"
+	base_bold="${BOLD}${base}${CLEAR}"
+	if [[ ! -d "${base}" ]]
+	then
+		printf "Subrepo(${base_error}) not initialized; cloning.\n" >&2
+		clone=$(git clone --depth 1 ${pull} ${base} --quiet 2>&1)
+	else
+		printf "Subrepo(${base_bold}) checking...\n" >&2
+		pushd ${base} > /dev/null
+		fetch=$(git fetch --depth=1 origin main --quiet 2>&1)
+		if [[ ! -z ${fetch} ]]
+		then
+		  printf "Subrepo(${base_error}) fetch error:\n${fetch}\n" >&2
+		fi
+		status=$(git status -sb)
+		if [[ "${status}" =~ "ahead" || "${status}" =~ "behind" ]]
+		then
+		  printf "Subrepo(${base_bold}) rebasing...]\n" >&2
+		  rebase=$(git rebase --quiet)
+			if [[ ! -z ${rebase} ]]
+			then
+				printf "Subrepo(${base_error}) rebase error:\n${rebase}\n" >&2
+			fi
+		  prune=$(git gc --prune=all --quiet)
+			if [[ ! -z ${prune} ]]
+			then
+				printf "Subrepo(${base_error}) prune error:\n${prune}\n" >&2
+			fi
+		fi
+		popd > /dev/null
+	fi
+	code=$( code --add ${base} )
+	ignored=$(grep -q "${base}" .gitignore; echo $?)
+	if [[ ! "${ignored}" == "0" ]]
+	then
+	  echo "\n# repo: ${repo}\n${base}" >> ".gitignore"
+	fi
+done
+popd > /dev/null
