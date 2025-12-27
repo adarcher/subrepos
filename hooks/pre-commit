@@ -48,20 +48,24 @@ for i in "${!repos[@]}"; do
 	else
 		printf "Subrepo(${base_bold}) checking...\n" >&2
 		pushd ${base} > /dev/null
-		fetch=$(git fetch --depth=1 origin main --quiet 2>&1)
-		if [[ ! -z ${fetch} ]]
-		then
-		  printf "Subrepo(${base_error}) fetch error:\n${fetch}\n" >&2
-		fi
 		status=$(git status -sb)
 		if [[ "${status}" =~ "ahead" || "${status}" =~ "behind" ]]
 		then
+		  printf "Subrepo(${base_bold}) fetching...]\n" >&2
+			fetch=$(git fetch --depth=1 origin main --quiet 2>&1)
+			if [[ ! -z ${fetch} ]]
+			then
+				printf "Subrepo(${base_error}) fetch error:\n${fetch}\n" >&2
+			fi
+
 		  printf "Subrepo(${base_bold}) rebasing...]\n" >&2
 		  rebase=$(git rebase --quiet)
 			if [[ ! -z ${rebase} ]]
 			then
 				printf "Subrepo(${base_error}) rebase error:\n${rebase}\n" >&2
 			fi
+
+		  printf "Subrepo(${base_bold}) pruning...]\n" >&2
 		  prune=$(git gc --prune=all --quiet)
 			if [[ ! -z ${prune} ]]
 			then
